@@ -1,0 +1,12 @@
+{
+  "$schema": "https://cdn.jsdelivr.net/npm/m68k-lint@2.3.0/m68k-lint.schema.json",
+  "platform": "amiga",
+  "goal": "size",
+  "presets": [
+    "recommended",
+    "style"
+  ],
+  "files": [
+    "**"
+  ]
+}
