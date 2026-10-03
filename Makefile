@@ -86,7 +86,7 @@ $(program).zx0: $(program).bin
 
 $(program).bin: $(sources) $(data)
 	$(VASM_BB) $(BBFLAGS) -DBOOTBLOCK=1 -quiet -Fbin -o $@ $<
-	@test $$(wc -c < $@) -le 65536 || (echo "$@ is over the 64K the bootblock allocates"; rm $@; false)
+	@test $$(wc -c < $@) -le 65536 || (echo "$@ is over the 64K between the unpack address and the screen"; rm $@; false)
 
 .PHONY: clean
 clean:

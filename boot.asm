@@ -1,5 +1,6 @@
 ; Bootblock: unpacks the effect (main.asm, zx0 packed) to chip RAM and runs it.
-; The effect never returns, so there's no need to set up a DOS boot.
+; The registers for a DOS boot (a0 = dos.library init, d0 = 0) are pushed
+; before unpacking, and the effect pops them and returns to boot DOS on exit.
 
 UNPACK_ADR = $50000             ; 64K below SCREEN_ADDR in main.asm
 
@@ -10,7 +11,7 @@ UnpackAdr:
         dc.l    UNPACK_ADR      ; BB_DOSBLOCK - Rootblock location for DOS disks
 ;-------------------------------------------------------------------------------
         lea     dos(pc),a1
-        jsr     -96(a6) ; FindResdent()
+        jsr     -96(a6) ; FindResident()
         move.l  d0,a0
         move.l  22(a0),a0 ; DosInit sub
         moveq   #0,d0

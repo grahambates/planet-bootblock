@@ -62,7 +62,8 @@ PAL_FADE_SHIFT set 1
 ; How far drawing runs ahead of the left edge of the display. Must be enough
 ; that each 16px strip has been converted to planar before it scrolls into view
 ; (> 352), but small enough that we don't overwrite visible memory
-; (< SCREEN_W-15). Multiple of 16 so it's a whole number of strips.
+; (< SCREEN_W-15). A whole number of strips, with LEAD-16 a multiple of 32 so
+; the strip being converted is always the other one of the pair.
 LEAD = 368
         ifne    (LEAD-16)&31
         fail    "LEAD-16 must be a multiple of 32"
@@ -198,8 +199,8 @@ Entrypoint:
 ; FogTab[y][v]: sum of two adjacent levels mapped to
 ; level*S+O. Going down the screen, S and O go linearly from fading towards
 ; LEVELS by FOG/256 at the top, to fading towards 0 by DARK/256 at the bottom.
-; Generate both horizontal dither phases at startup. Q5.3 intermediates
-; preserve the original rounding; the pixel loop reads finished colours.
+; Each row has an even and an odd pixel bank, with ordered dither thresholds
+; in the 3 fractional bits, so the pixel loop reads finished colours.
 FOG_S0 = (256-FOG)<<10
 FOG_S1 = (256-DARK)<<10
 FOG_O0 = LEVELS*FOG<<11        ; retain three fractional bits, no rounding bias
@@ -396,8 +397,7 @@ MainLoop:
         lea     YTab+(SCREEN_H-1)*STATE_ROW-Vars(a5),a0
         adda.w  d2,a0
 
-; CosC[state] = cos(Column*CStep[state]), modulo 65536. Multiplication is
-; equivalent to the old accumulated CPhase, without storing eight phases.
+; CosC[state] = cos(Column*CStep[state]), modulo 65536.
 ; d0 = Column is kept through drawing, for the strip and C2P positions.
         move.l  Column-Vars(a5),d0
         moveq   #(STATES-1)*4,d6
@@ -459,8 +459,7 @@ MainLoop:
         swap    d3
         move.b  d3,(a4)
 
-; Remaining run pixels: max(existing, level). The next state is already in
-; d5, so d2 can become the run counter without copying it to d0.
+; Remaining run pixels: max(existing, level)
 ; run = max(1, z>>10)
         lsr.w   #2,d2
         subq.w  #1,d2
@@ -566,10 +565,10 @@ MainLoop:
         lea     SCREEN_BPL(a1),a1
         endr
 
-; d0 = 2*(Column>>4), left by the bitplane-pointer calculation. The
-; total shift by 2 gives a byte phase that steps by 8 every 16 columns. Adding 8 per
-; colour reproduces the default sign ripple, with its phase advanced by
-; one palette level (16 frames), plus the one-based Column count.
+; d0 = 2*(Column>>4), left by the bitplane-pointer calculation. Shifted
+; by 2 in total, it gives a byte phase that steps by 8 every 16 columns. Each
+; colour adds 8, and while the result is negative it shows the previous
+; gradient entry, so a band of shifted colours ripples through the palette.
         ifne    PAL_FADE_SHIFT
         lsl.l   #PAL_FADE_SHIFT,d0
         endc
@@ -580,7 +579,8 @@ MainLoop:
         add.l   d0,d2
         bpl.s   .fadeDone
         adda.w  d2,a0
-; d0 = 0..62 during the fade: audio volume scale /64, left at 62 afterwards
+; d0 = 0..62 during the fade (PAL_FADE=512): audio volume scale /64, left
+; at its last value afterwards
         move.w  d0,Fade-Vars(a5)
 .fadeDone:
         ifne    2-PAL_FADE_SHIFT
@@ -622,9 +622,8 @@ Exit:
 ; Audio interrupt: Paula has started playing the previous buffers, so point
 ; channel 0 at the next one in the ring and fill it with the next AUD_LEN
 ; samples. Channels 1-3 get the buffers ECHO_D, 2*ECHO_D and 3*ECHO_D before it,
-; at half the volume each time. Also called once before DMA starts, so it sets
-; up length and period as well.
-;
+; at half the volume each time, all scaled by Fade. Also called once before DMA
+; starts, so it sets up length and period as well.
 ********************************************************************************
 AudioInt:
         movem.l d0-a6,-(sp)
@@ -736,7 +735,7 @@ Gradient:
 	dc.w $000,$000,$000,$001,$101,$112,$212,$213
 	dc.w $223,$324,$324,$435,$535,$546,$656,$766
 	dc.w $877,$987,$a97,$ba8,$cb8,$db8,$dc9,$ed9
-	dc.w $fe9,$ffa,$ffb,$ffc,$ffd,$ffd,$fff ; last entry is never read
+	dc.w $fe9,$ffa,$ffb,$ffc,$ffd,$ffd,$fff
         endc
 
         ifeq PALETTE-5
@@ -749,11 +748,12 @@ Gradient:
         endc
 
 ********************************************************************************
-; Buffers and tables. These are part of the program so it's a single section,
-; and they're all zeros, so pack down to almost nothing.
+; Buffers and tables. These are part of the program, and they're all zeros, so
+; pack down to almost nothing.
 ;
 ; Except FogTab, everything is addressed from Vars in a5, within 32K of the code
-; (for lea Vars(pc)) and the start of each table is within 32K of Vars.
+; (for lea Vars(pc)) and the start of each table is within 32K of Vars. FogTab
+; is generated at startup, so it's kept out of the program entirely.
 ********************************************************************************
 
 

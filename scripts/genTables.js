@@ -115,7 +115,7 @@ for (let state = 0; state < 8; state++) {
   p = Math.floor((p * PBASE) / (1 << 14));
 }
 
-// DrawColumn assumes z1 is always in 1..$fff: z1 and z stay positive (runs
+// MainLoop assumes z1 is always in 1..$fff: z1 and z stay positive (runs
 // only go down) and runs are at most 7 pixels.
 if (z1Min <= 0 || z1Max >= 0x1000) {
   throw new Error(`z1 out of range: ${z1Min}..${z1Max}`);
